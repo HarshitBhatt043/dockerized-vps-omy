@@ -1,195 +1,201 @@
-# VPS Dockerized GitOps Deployment
+# Modular VPS Infrastructure via GitOps and Docker
 
-This repository is designed for managing and deploying containerized applications using GitOps principles. It supports **VPS** setups by providing Docker-based service configurations and seamless Git-based automation using tools like [Komodo](https://komo.do/docs/intro). Each branch in this repository represents a self-contained deployment for a specific service or stack.
+Welcome to a uniquely structured GitOps-powered repository for managing your VPS infrastructure. Every service here lives on its own orphan Git branch, is declaratively defined, and auto-deployed to a Docker runtime on a VPS using [Komodo](https://github.com/komodorio/komodo).
 
----
-
-## 🚀 Features
-
-- Declarative Docker configurations for individual services or stacks.
-- GitOps-powered continuous deployment.
-- Support for orphan-branch model to isolate deployments.
-- Works across different VPS environments.
-- Bash helpers to streamline branch and deployment workflows.
+This repo is more than just code – it's an **infrastructure control plane**, where Git is the source of truth and Docker is the engine of execution.
 
 ---
 
-## 📦 Requirements
+## 📑 Table of Contents
 
-- [Git](https://git-scm.com/)
-- [Docker](https://www.docker.com/) and Docker Compose
-- A GitOps tool like [Komodo](https://komo.do/docs/intro) configured with webhook or polling
-- A target server (VPS) with Docker runtime
-
----
-
-## 📁 Repository Structure
-
-Each **branch** represents an independent service (e.g., `Nginx`, `Nextcloud`, `Jellyfin`) and contains:
-
-```
-.
-├── docker-compose.yml     # Main service definition
-├── .env                   # Optional environment variables
-├── setup.sh               # Optional initialization scripts
-└── README.md              # Service-specific notes
-```
-
-> ✅ Using orphan branches keeps service deployments clean, focused, and version-controlled.
+- [Purpose](#purpose)
+- [How It Works](#how-it-works)
+- [Requirements](#requirements)
+- [Repository Structure](#repository-structure)
+- [GitOps Lifecycle](#gitops-lifecycle)
+- [Deployment Example](#deployment-example)
+- [Security Overview](#security-overview)
+  - [General Security Practices](#general-security-practices)
+  - [VPS-Specific Security Considerations](#vps-specific-security-considerations)
+- [Visual Architecture](#visual-architecture)
+- [FAQ](#faq)
 
 ---
 
-## ⚙️ Getting Started
+## 🎯 Purpose
 
-### 1. Clone the Repository
+This repository provides a **GitOps-based deployment system** for Dockerized services running on a VPS. It organizes services as **orphan branches**, and automates deployments using Komodo whenever commits are pushed. The deployment pipeline is simple, reproducible, and secure.
+
+Key goals:
+
+- **Declarative** infrastructure
+- **Isolated per-service** logic via orphan branches
+- **Automated deployments** via Git webhooks and Komodo
+- **Docker-based orchestration** on remote VPS
+
+---
+
+## ✅ Requirements
+
+- A VPS with Docker and Komodo installed
+- Git repository with orphan branches per service
+- Git webhook setup pointing to Komodo endpoint
+- Proper firewall and security settings as outlined above
+
+---
+
+## ⚙️ How It Works
+
+When a commit is made to an orphan branch:
+
+1. A Git webhook is triggered for that branch.
+2. Komodo receives the webhook and pulls the latest state of the branch.
+3. Komodo performs a `git diff` to determine what changed.
+4. If needed, it runs `docker compose up -d` to update the live service.
+5. The VPS now reflects exactly what’s in the branch.
+
+This ensures a **declarative**, **versioned**, and **automated** deployment cycle.
+
+---
+
+## 🗂️ Repository Structure
+
+This repository is **multi-branch monorepo**, and **isolated per service** using orphan branches.
+
+### Branching Pattern
+
+| Branch Name  | Service       | Contents                                |
+| ------------ | ------------- | --------------------------------------- |
+| `main`       | README only   | This file                               |
+| `Dozzle`     | Log viewer    | `compose.yaml`, optional `env/configs/` |
+| `Librespeed` | Speed test    | `compose.yaml`                          |
+| `Homepage`   | Dashboard     | `compose.yaml`, `static/`, `init.sh`    |
+| `...`        | More services | Follow the same pattern                 |
+
+Each orphan branch contains:
 
 ```bash
-git clone https://{{git-source}}/{{user-name}}/{{repo-name}}.git
-cd {{repo-name}}
-```
-
-### 2. Create a New Orphan Branch
-
-```bash
-git checkout --orphan <ServiceName>
-```
-
-> 📛 **Branch Naming Convention:**  
-> Use a simple service name like `Nginx`, `Jellyfin`, `Plex`, etc.
-
----
-
-### 3. Configure Your Service
-
-- Edit `docker-compose.yml` and supporting files.
-- Add `.env` for custom environment values if needed.
-- Optionally include setup scripts (e.g., `setup.sh`).
-
-Then:
-
-```bash
-git add .
-git commit -m "Add deployment for <ServiceName>"
+compose.yaml
+.env                    # Optional environment variables
+init.sh                 # Optional entry/setup script
+configs/                # Optional configuration directory
+README.md               # Optional service-specific docs
 ```
 
 ---
 
-### 4. Push the Branch
+## 🔁 GitOps Lifecycle
 
-```bash
-git push origin <ServiceName>
+### Sequence of Automation
+
+```mermaid
+sequenceDiagram
+  participant Dev as Developer
+  participant Git as Git Repo
+  participant Webhook as Git Webhook
+  participant Komodo as Komodo Engine
+  participant VPS as Remote VPS
+
+  Dev->>Git: Push to orphan branch
+  Git-->>Webhook: Trigger webhook
+  Webhook-->>Komodo: Notify branch & commit
+  Komodo->>Git: Pull updated branch
+  Komodo->>VPS: Run docker compose up -d
+  VPS-->>Dev: Service updated & running
 ```
 
 ---
 
-### 5. Set Up GitOps Tool
+## 📦 Deployment Example: Librespeed
 
-I recommend [Komodo](https://komo.do/docs/intro), but any GitOps-compatible tool will work.
+Branch: `Librespeed`
 
-**Steps:**
+```yaml
+version: "3.8"
+services:
+  librespeed:
+    image: ghcr.io/librespeed/speedtest
+    container_name: librespeed
+    restart: always
+    ports:
+      - "8080:80"
+    volumes:
+      - ./configs:/etc/librespeed
+```
 
-1. Configure the GitOps tool to monitor your repo or a specific branch.
-2. Set up a webhook or enable polling for automated triggers.
-3. Choose deployment mode: auto-sync or manual approvals.
-4. Test deployment by pushing a small change.
+When you commit this `compose.yaml` to the `Librespeed` branch:
 
-🧪 **Verify:** Ensure the GitOps tool detects changes and updates the deployment automatically.
+- Komodo pulls the update
+- Executes `docker compose up -d`
+- Exposes the speedtest server on port 8080
+
+```mermaid
+graph LR
+  Librespeed_Branch["Librespeed Branch (compose.yaml)"] --> Komodo["Komodo Deployment Engine"]
+  Komodo --> Docker["Docker Engine on VPS"]
+  Docker --> Service["Librespeed Service running on port 8080"]
+```
 
 ---
 
-## 🧰 Bash Helpers
+## 🔐 Security Overview
 
-Useful aliases and functions for managing Git branches and deployments. Add to `.bashrc`, `.zshrc`, or `.bash_aliases`.
+### General Security Practices
 
-### Pull All Branches and Sync
+Running public-facing Docker services requires a secure approach. Here are best practices:
 
-```bash
-alias pullall='
-git fetch --prune --all && \
-current_branch=$(git branch --show-current); \
-for local_branch in $(git branch --format="%(refname:short)"); do \
-  if ! git show-ref --verify --quiet refs/remotes/origin/$local_branch; then \
-    echo "🧹 Deleting local branch $local_branch (no longer exists on origin)..."; \
-    git branch -D $local_branch; \
-  fi; \
-done; \
-for remote_branch in $(git branch -r | grep -v "\->" | sed "s|origin/||"); do \
-  if git show-ref --verify --quiet refs/heads/$remote_branch; then \
-    echo "🔍 Checking branch $remote_branch (already exists locally)..."; \
-    ahead=$(git rev-list --left-right --count $remote_branch...origin/$remote_branch | awk "{print \$1}"); \
-    behind=$(git rev-list --left-right --count $remote_branch...origin/$remote_branch | awk "{print \$2}"); \
-    if [ "$ahead" = "0" ] && [ "$behind" != "0" ]; then \
-      echo "  ⏩ Fast-forwarding $remote_branch..."; \
-      git update-ref refs/heads/$remote_branch refs/remotes/origin/$remote_branch; \
-    elif [ "$ahead" = "0" ] && [ "$behind" = "0" ]; then \
-      echo "  ✅ $remote_branch is already up-to-date."; \
-    else \
-      echo "  ⚠️ $remote_branch has diverged! Needs manual pull/merge."; \
-    fi; \
-  else \
-    echo "🌱 Creating missing local branch $remote_branch tracking origin/$remote_branch..."; \
-    git branch $remote_branch origin/$remote_branch; \
-  fi; \
-done; \
-git checkout $current_branch'
+| Area             | Recommendation                                                             |
+| ---------------- | -------------------------------------------------------------------------- |
+| Git Webhooks     | Secure webhook with a **shared secret**                                    |
+| SSH Access       | Use **SSH keys only**, disable password login                              |
+| Firewall         | Use `ufw` or `iptables` to **restrict ports** by service                   |
+| Reverse Proxy    | Use **Caddy/Nginx with HTTPS** in front of services                        |
+| Container Images | Pin to **specific versions**, avoid `latest`                               |
+| Secrets          | Store in `.env`, or use Docker secrets (don't commit to Git)               |
+| Docker Isolation | Run containers with minimal privileges (`read-only`, `no-new-privs`, etc.) |
+| Monitoring       | Use tools like `Dozzle` or `Prometheus` to monitor services                |
+
+```mermaid
+graph TD
+  Webhook["Git Webhook (secured)"] --> Komodo["Komodo Engine"]
+  SSH["SSH Key Access"] --> VPS["VPS Server"]
+  VPS --> Firewall["Firewall (UFW/iptables)"]
+  VPS --> Docker["Docker Containers"]
+  ReverseProxy["Reverse Proxy (Caddy/Nginx)"] --> Docker
+  Monitoring["Monitoring Tools (Dozzle, Prometheus)"] --> VPS
 ```
 
-### Orphan Branch Creator
+### Komodo Webhook Security
 
-```bash
-orphan() {
-    if [ -z "$1" ]; then
-        echo "Usage: orphan <branch-name>"
-        return 1
-    fi
-    git checkout --orphan "$1"
+```json
+{
+  "url": "https://komodo.yourdomain.com/webhook",
+  "content_type": "json",
+  "secret": "super-secret-token"
 }
 ```
 
-### Enable Git Autocompletion
-
-```bash
-source /usr/share/bash-completion/completions/git
-```
-
 ---
 
-## 🔁 Deployment Flow (Diagram)
-
-```
-  Git Branch (e.g., Nginx)
-           ↓
-     Git Commit/Push
-           ↓
-   GitOps Tool (e.g., Komodo)
-           ↓
-   Docker Compose Deployment
-           ↓
-        Target Host
-```
-
----
-
-## 🔒 VPS-Specific Security Considerations
+## 🛡️ VPS-Specific Security Considerations
 
 Unlike managed platforms, VPS environments often expose **all ports by default**, leaving services vulnerable if not properly secured. Always follow these practices when deploying on a VPS:
 
-### 🚧 1. Restrict Open Ports
+### 1. Restrict Open Ports
 
 Only open ports that your services require. Common ports:
 
-| Service         | Port     |
-| --------------- | -------- |
-| HTTP            | 80       |
-| HTTPS           | 443      |
-| SSH             | 22       |
-| Custom Services | _custom_ |
+```mermaid
+graph LR
+  VPS["VPS"] -->|Open Ports| Ports["22 (SSH), 80 (HTTP), 443 (HTTPS), Custom Ports"]
+  Ports --> Users["Users/Clients"]
+```
 
 Use your firewall to restrict all others.
 
 ---
 
-### 🛡️ 2. Enable and Configure Firewall
+### 2. Enable and Configure Firewall
 
 #### On Ubuntu/Debian (UFW):
 
@@ -225,13 +231,11 @@ echo "UFW rules updated to allow Cloudflare traffic on ports 80 and 443, and SSH
 
 ---
 
-### 🛑 3. Docker and UFW: Hidden Risk
+### 3. Docker and UFW: Hidden Risk
 
 By default, **Docker directly modifies iptables**, which can **bypass UFW rules**, even if you've locked down ports with UFW. This means containers may be **exposed to the public internet**, despite appearing protected.
 
-To mitigate this risk, follow these steps:
-
-#### 🔐 Mitigation: Disable Docker's iptables Manipulation
+#### Mitigation: Disable Docker's iptables Manipulation
 
 Add this to `/etc/docker/daemon.json`:
 
@@ -247,9 +251,9 @@ Then restart Docker:
 sudo systemctl restart docker
 ```
 
-> 🛑 **Warning:** You must manually manage iptables or UFW rules for container networking after disabling Docker’s iptables behavior.
+> **Warning:** You must manually manage iptables or UFW rules for container networking after disabling Docker’s iptables behavior.
 
-#### 🧰 Optional: UFW-Docker Workaround Script
+#### Optional: UFW-Docker Workaround Script
 
 If you prefer to let UFW manage your Docker networking, consider using the [`ufw-docker`](https://github.com/chaifeng/ufw-docker) script:
 
@@ -259,17 +263,24 @@ cd ufw-docker
 sudo ./install.sh
 ```
 
+```mermaid
+graph LR
+  Docker["Docker (iptables enabled)"] -->|Bypasses| UFW["UFW Rules"]
+  Docker_Disabled["Docker (iptables disabled)"] -->|Manual Management| UFW
+  UFW_Docker["ufw-docker script"] --> UFW
+```
+
 ---
 
-### ☁️ 4. Provider-Specific Port Rules
+### 4. 🌐 Provider-Specific Port Rules
 
-#### 🟢 **AWS EC2**
+#### AWS EC2
 
 - Use **Security Groups**.
 - Allow only required ports to `0.0.0.0/0` (or restrict to specific IP ranges).
 - Example: allow ports 22, 80, 443 in the EC2 dashboard.
 
-#### 🔵 **Oracle Cloud Free Tier**
+#### Oracle Cloud Free Tier
 
 - Must **manually allow ingress ports** in:
   - **VNIC security list**
@@ -279,23 +290,105 @@ sudo ./install.sh
   - TCP 443 (HTTPS)
   - TCP for your app port(s) as needed
 
-#### 🔶 **DigitalOcean / Linode / Hetzner**
+#### DigitalOcean / Linode / Hetzner
 
 - Usually no firewall by default — you’re fully exposed.
 - Install and configure `ufw` or `iptables` immediately after provisioning.
 
+```mermaid
+flowchart TD
+  Internet["🌐 Internet"]
+
+  %% AWS EC2
+  subgraph AWS["AWS EC2"]
+    SG["Security Group"]
+    EC2["EC2 Instance"]
+    SG --> EC2
+    NoteAWS[/"Allow only 22, 80, 443 in SG Restrict IP ranges for tighter access"/]
+  end
+  Internet --> SG
+  NoteAWS -.-> SG
+
+  %% Oracle Cloud
+  subgraph OCI["Oracle Cloud Free Tier"]
+    VNIC["VNIC Security List"]
+    NSG["Network Security Group"]
+    InstanceOCI["Compute Instance"]
+    VNIC --> InstanceOCI
+    NSG --> InstanceOCI
+    NoteOCI[/"Must configure both VNIC and NSG Default only allows port 22"/]
+  end
+  Internet --> VNIC
+  Internet --> NSG
+  NoteOCI -.-> VNIC
+
+  %% DO / Linode / Hetzner
+  subgraph DO["DigitalOcean/Linode/Hetzner"]
+    NoFirewall["No default firewall"]
+    ManualFW["Install UFW/iptables"]
+    VPS["VPS Instance"]
+    ManualFW --> VPS
+    NoteDO[/"Fully exposed by default Set up firewall manually after provisioning"/]
+  end
+  Internet --> NoFirewall
+  NoFirewall --> ManualFW
+  NoteDO -.-> ManualFW
+```
+
 ---
 
-### 🧷 5. Additional Best Practices
+#### 5. Additional Best Practices
 
 - Use **SSH keys** instead of passwords.
 - Disable **root login** via SSH.
 - Regularly **update and patch** (`unattended-upgrades` on Debian/Ubuntu).
 - Install **Fail2Ban** to mitigate brute-force attacks:
-  ```bash
-  sudo apt install fail2ban
-  sudo systemctl enable fail2ban
-  ```
+
+```bash
+sudo apt install fail2ban
+sudo systemctl enable fail2ban
+```
+
+```mermaid
+graph LR
+  Update["Update & Patch System"] --> Secure["Secure SSH (Keys & No Root)"]
+  Secure --> Fail2Ban["Install Fail2Ban"]
+  Fail2Ban --> Protected["System Hardened"]
+```
+
+---
+
+## 📊 Visual Architecture
+
+### High-Level Component Diagram
+
+```mermaid
+graph TD
+  GitRepo["Git Repo (Orphan Branches)"]
+  Komodo["Komodo Deployment Engine"]
+  VPS["VPS with Docker"]
+  Users["Users/Clients"]
+
+  GitRepo -->|Pushes & Webhooks| Komodo
+  Komodo -->|Deploys via Docker| VPS
+  Users -->|Access Services| VPS
+```
+
+---
+
+## ❓ FAQ
+
+**Q: Why use orphan branches?**  
+A: Isolates service definitions and enables independent lifecycle management and deployment.
+
+**Q: Can I deploy multiple services on one VPS?**  
+A: Yes, each orphan branch manages one service with its own docker compose.
+
+**Q: How to handle secrets?**  
+A: Use environment variables, Docker secrets, or external vaults; do not commit secrets to Git.
+
+**Q: How to rollback?**  
+A: Simply revert or checkout an older commit on the orphan branch and push; Komodo will redeploy.
 
 ---
 **THIS REPOSITORY IS ENCRYPTED. IF YOU'RE HERE, YOU'RE EITHER VERY BRAVE OR VERY LOST. EITHER WAY, GOOD LUCK!**

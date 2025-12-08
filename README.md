@@ -1,28 +1,47 @@
 # Modular VPS Infrastructure via GitOps and Docker
 
+[![GitOps](https://img.shields.io/badge/GitOps-Automated%20Deployments-0A7ACC?style=for-the-badge&logo=git&logoColor=white)]()
+[![Docker](https://img.shields.io/badge/Docker-Containerized-2496ED?style=for-the-badge&logo=docker&logoColor=white)]()
+[![Security](https://img.shields.io/badge/VPS%20Hardened-Firewall%20%7C%20SSH%20Keys-2BAF2B?style=for-the-badge&logo=shield&logoColor=white)]()
+
 Welcome to a uniquely structured GitOps-powered repository for managing your VPS infrastructure. Every service here lives on its own orphan Git branch, is declaratively defined, and auto-deployed to a Docker runtime on a VPS using [Komodo](https://github.com/komodorio/komodo).
 
 This repo is more than just code – it's an **infrastructure control plane**, where Git is the source of truth and Docker is the engine of execution.
 
 ---
 
-## 📑 Table of Contents
+## 📑 Table of Contents <a id="table-of-contents"></a>
 
 - [Purpose](#purpose)
 - [How It Works](#how-it-works)
 - [Requirements](#requirements)
 - [Repository Structure](#repository-structure)
+  - [Branching Pattern](#branching-pattern)
 - [GitOps Lifecycle](#gitops-lifecycle)
-- [Deployment Example](#deployment-example)
+  - [Sequence of Automation](#sequence-of-automation)
+- [Deployment Example: Librespeed](#deployment-example-librespeed)
 - [Security Overview](#security-overview)
   - [General Security Practices](#general-security-practices)
+  - [Komodo Webhook Security](#komodo-webhook-security)
   - [VPS-Specific Security Considerations](#vps-specific-security-considerations)
+    - [1. Restrict Open Ports](#1-restrict-open-ports)
+    - [2. Enable and Configure Firewall](#2-enable-and-configure-firewall)
+      - [On Ubuntu/Debian (UFW)](#on-ubuntudebian-ufw)
+    - [3. Docker and UFW: Hidden Risk](#3-docker-and-ufw-hidden-risk)
+      - [Mitigation: Disable Docker's iptables Manipulation](#mitigation-disable-dockers-iptables-manipulation)
+      - [Optional: UFW-Docker Workaround Script](#optional-ufw-docker-workaround-script)
+    - [4. Provider-Specific Port Rules](#4-provider-specific-port-rules)
+      - [AWS EC2](#aws-ec2)
+      - [Oracle Cloud Free Tier](#oracle-cloud-free-tier)
+      - [DigitalOcean / Linode / Hetzner](#digitalocean--linode--hetzner)
+    - [5. Additional Best Practices](#5-additional-best-practices)
 - [Visual Architecture](#visual-architecture)
+  - [High-Level Component Diagram](#high-level-component-diagram)
 - [FAQ](#faq)
 
 ---
 
-## 🎯 Purpose
+## 🎯 Purpose <a id="purpose"></a>
 
 This repository provides a **GitOps-based deployment system** for Dockerized services running on a VPS. It organizes services as **orphan branches**, and automates deployments using Komodo whenever commits are pushed. The deployment pipeline is simple, reproducible, and secure.
 
@@ -35,16 +54,7 @@ Key goals:
 
 ---
 
-## ✅ Requirements
-
-- A VPS with Docker and Komodo installed
-- Git repository with orphan branches per service
-- Git webhook setup pointing to Komodo endpoint
-- Proper firewall and security settings as outlined above
-
----
-
-## ⚙️ How It Works
+## ⚙️ How It Works <a id="how-it-works"></a>
 
 When a commit is made to an orphan branch:
 
@@ -58,11 +68,20 @@ This ensures a **declarative**, **versioned**, and **automated** deployment cycl
 
 ---
 
-## 🗂️ Repository Structure
+## ✅ Requirements <a id="requirements"></a>
+
+- A VPS with Docker and Komodo/Agent installed
+- Git repository with orphan branches per service
+- Git webhook setup pointing to Komodo endpoint
+- Proper firewall and security settings as outlined
+
+---
+
+## 🗂️ Repository Structure <a id="repository-structure"></a>
 
 This repository is **multi-branch monorepo**, and **isolated per service** using orphan branches.
 
-### Branching Pattern
+### Branching Pattern <a id="branching-pattern"></a>
 
 | Branch Name  | Service       | Contents                                |
 | ------------ | ------------- | --------------------------------------- |
@@ -77,16 +96,16 @@ Each orphan branch contains:
 ```bash
 compose.yaml
 .env                    # Optional environment variables
-init.sh                 # Optional entry/setup script
+setup.sh                 # Optional entry/setup script
 configs/                # Optional configuration directory
 README.md               # Optional service-specific docs
 ```
 
 ---
 
-## 🔁 GitOps Lifecycle
+## 🔁 GitOps Lifecycle <a id="gitops-lifecycle"></a>
 
-### Sequence of Automation
+### Sequence of Automation <a id="sequence-of-automation"></a>
 
 ```mermaid
 sequenceDiagram
@@ -106,15 +125,14 @@ sequenceDiagram
 
 ---
 
-## 📦 Deployment Example: Librespeed
+## 📦 Deployment Example: Librespeed <a id="deployment-example-librespeed"></a>
 
 Branch: `Librespeed`
 
 ```yaml
-version: "3.8"
 services:
   librespeed:
-    image: ghcr.io/librespeed/speedtest
+    image: ghcr.io/librespeed/speedtest:latest
     container_name: librespeed
     restart: always
     ports:
@@ -138,9 +156,9 @@ graph LR
 
 ---
 
-## 🔐 Security Overview
+## 🔐 Security Overview <a id="security-overview"></a>
 
-### General Security Practices
+### General Security Practices <a id="general-security-practices"></a>
 
 Running public-facing Docker services requires a secure approach. Here are best practices:
 
@@ -165,7 +183,7 @@ graph TD
   Monitoring["Monitoring Tools (Dozzle, Prometheus)"] --> VPS
 ```
 
-### Komodo Webhook Security
+### Komodo Webhook Security <a id="komodo-webhook-security"></a>
 
 ```json
 {
@@ -177,11 +195,11 @@ graph TD
 
 ---
 
-## 🛡️ VPS-Specific Security Considerations
+## 🛡️ VPS-Specific Security Considerations <a id="vps-specific-security-considerations"></a>
 
 Unlike managed platforms, VPS environments often expose **all ports by default**, leaving services vulnerable if not properly secured. Always follow these practices when deploying on a VPS:
 
-### 1. Restrict Open Ports
+### 1. Restrict Open Ports <a id="1-restrict-open-ports"></a>
 
 Only open ports that your services require. Common ports:
 
@@ -195,9 +213,9 @@ Use your firewall to restrict all others.
 
 ---
 
-### 2. Enable and Configure Firewall
+### 2. Enable and Configure Firewall <a id="2-enable-and-configure-firewall"></a>
 
-#### On Ubuntu/Debian (UFW):
+#### On Ubuntu/Debian (UFW): <a id="on-ubuntudebian-ufw"></a>
 
 ```bash
 #!/bin/sh
@@ -231,11 +249,11 @@ echo "UFW rules updated to allow Cloudflare traffic on ports 80 and 443, and SSH
 
 ---
 
-### 3. Docker and UFW: Hidden Risk
+### 3. Docker and UFW: Hidden Risk <a id="3-docker-and-ufw-hidden-risk"></a>
 
 By default, **Docker directly modifies iptables**, which can **bypass UFW rules**, even if you've locked down ports with UFW. This means containers may be **exposed to the public internet**, despite appearing protected.
 
-#### Mitigation: Disable Docker's iptables Manipulation
+#### Mitigation: Disable Docker's iptables Manipulation <a id="mitigation-disable-dockers-iptables-manipulation"></a>
 
 Add this to `/etc/docker/daemon.json`:
 
@@ -253,7 +271,7 @@ sudo systemctl restart docker
 
 > **Warning:** You must manually manage iptables or UFW rules for container networking after disabling Docker’s iptables behavior.
 
-#### Optional: UFW-Docker Workaround Script
+#### Optional: UFW-Docker Workaround Script <a id="optional-ufw-docker-workaround-script"></a>
 
 If you prefer to let UFW manage your Docker networking, consider using the [`ufw-docker`](https://github.com/chaifeng/ufw-docker) script:
 
@@ -272,15 +290,15 @@ graph LR
 
 ---
 
-### 4. 🌐 Provider-Specific Port Rules
+### 4. 🌐 Provider-Specific Port Rules <a id="4-provider-specific-port-rules"></a>
 
-#### AWS EC2
+#### AWS EC2 <a id="aws-ec2"></a>
 
 - Use **Security Groups**.
 - Allow only required ports to `0.0.0.0/0` (or restrict to specific IP ranges).
 - Example: allow ports 22, 80, 443 in the EC2 dashboard.
 
-#### Oracle Cloud Free Tier
+#### Oracle Cloud Free Tier <a id="oracle-cloud-free-tier"></a>
 
 - Must **manually allow ingress ports** in:
   - **VNIC security list**
@@ -290,7 +308,7 @@ graph LR
   - TCP 443 (HTTPS)
   - TCP for your app port(s) as needed
 
-#### DigitalOcean / Linode / Hetzner
+#### DigitalOcean / Linode / Hetzner <a id="digitalocean--linode--hetzner"></a>
 
 - Usually no firewall by default — you’re fully exposed.
 - Install and configure `ufw` or `iptables` immediately after provisioning.
@@ -337,7 +355,7 @@ flowchart TD
 
 ---
 
-#### 5. Additional Best Practices
+### 5. Additional Best Practices <a id="5-additional-best-practices"></a>
 
 - Use **SSH keys** instead of passwords.
 - Disable **root login** via SSH.
@@ -358,9 +376,9 @@ graph LR
 
 ---
 
-## 📊 Visual Architecture
+## 📊 Visual Architecture <a id="visual-architecture"></a>
 
-### High-Level Component Diagram
+### High-Level Component Diagram <a id="high-level-component-diagram"></a>
 
 ```mermaid
 graph TD
@@ -376,7 +394,7 @@ graph TD
 
 ---
 
-## ❓ FAQ
+## ❓ FAQ <a id="faq"></a>
 
 **Q: Why use orphan branches?**  
 A: Isolates service definitions and enables independent lifecycle management and deployment.
@@ -391,4 +409,6 @@ A: Use environment variables, Docker secrets, or external vaults; do not commit 
 A: Simply revert or checkout an older commit on the orphan branch and push; Komodo will redeploy.
 
 ---
+
+[⬆️ Back to Top](#table-of-contents)
 **THIS REPOSITORY IS ENCRYPTED. IF YOU'RE HERE, YOU'RE EITHER VERY BRAVE OR VERY LOST. EITHER WAY, GOOD LUCK!**
